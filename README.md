@@ -12,8 +12,8 @@ Selain itu, ChatKasir dilengkapi dengan asisten chatbot **TanyaAI** (berbasis Go
 
 Anda dapat mengakses dan mencoba ekosistem ChatKasir yang sudah berjalan secara langsung di cloud melalui tautan berikut:
 
-- **Aplikasi Utama (Frontend - Vercel):** [https://chatkasir.vercel.app](https://chatkasir.vercel.app)
-- **Core Service (Backend API - Vercel):** [https://chatkasir-backend.vercel.app]
+- **Aplikasi Utama (Frontend - Vercel):** [https://chatkasir.vercel.app]
+- **Core Service (Backend API - Vercel):** [https://chat-kasir-backend.vercel.app]
 - **Asisten Cerdas (AI Inference API - Hugging Face Spaces):** [https://achmadrifan-chatkasir.hf.space]
 - **Dashboard Analitik & Bisnis (Streamlit Cloud):** [https://dashboard-chatkasir.streamlit.app]
 
