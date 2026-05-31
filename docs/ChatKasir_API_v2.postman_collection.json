@@ -1,0 +1,284 @@
+{
+  "info": {
+    "_postman_id": "b3e9a5c8-2b81-4f91-88c9-93b5a12b8d99",
+    "name": "ChatKasir API v2.0",
+    "description": "Koleksi API terupdate untuk ChatKasir (FS-2). Sudah menyesuaikan kontrak AI V2, Auth Brevo SMTP, dan integrasi TanyaAI.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Auth (Autentikasi)",
+      "item": [
+        {
+          "name": "1. Register Account",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"penjual_test@gmail.com\",\n  \"password\": \"password123\",\n  \"full_name\": \"Budi Kasir\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "2. Verify OTP (Aktivasi)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"penjual_test@gmail.com\",\n  \"token\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/verify-otp",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "verify-otp"]
+            }
+          }
+        },
+        {
+          "name": "3. Login",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"penjual_test@gmail.com\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "4. Forgot Password (Request Link)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"penjual_test@gmail.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/forgot-password",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "forgot-password"]
+            }
+          }
+        },
+        {
+          "name": "5. Update Password",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"access_token\": \"token_dari_url_email\",\n  \"refresh_token\": \"refresh_token_dari_url_email\",\n  \"new_password\": \"passwordBaru123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/update-password",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "update-password"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Transactions & AI NLP",
+      "item": [
+        {
+          "name": "1. Analyze Chat (Tembak Model AI V2)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raw_text\": \"pesan paket ayam bakar madu 10 bungkus sama es kopi susu gula aren 5\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/transactions/analyze",
+              "host": ["{{base_url}}"],
+              "path": ["transactions", "analyze"]
+            }
+          }
+        },
+        {
+          "name": "2. Save Transaction (Konfirmasi Permanen)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"total_price\": 440000,\n  \"items\": [\n    {\n      \"product_name\": \"Ayam Bakar Madu\",\n      \"quantity\": 10,\n      \"price_satuan\": 35000,\n      \"subtotal\": 350000\n    },\n    {\n      \"product_name\": \"Es Kopi Susu Gula Aren\",\n      \"quantity\": 5,\n      \"price_satuan\": 18000,\n      \"subtotal\": 90000\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/transactions",
+              "host": ["{{base_url}}"],
+              "path": ["transactions"]
+            }
+          }
+        },
+        {
+          "name": "3. Get Transaction History (Pagination)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/transactions?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["transactions"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Dashboard & Reports",
+      "item": [
+        {
+          "name": "Get Monthly Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/report/monthly?month=5&year=2026",
+              "host": ["{{base_url}}"],
+              "path": ["report", "monthly"],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "5"
+                },
+                {
+                  "key": "year",
+                  "value": "2026"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. TanyaAI (Gemini Chatbot)",
+      "item": [
+        {
+          "name": "Chat with TanyaAI",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Halo TanyaAI, bagaimana cara mencatat stok barang dengan efisien untuk warung makan kecil?\",\n  \"history\": [\n    {\n      \"role\": \"user\",\n      \"parts\": [{ \"text\": \"Halo!\" }]\n    },\n    {\n      \"role\": \"model\",\n      \"parts\": [{ \"text\": \"Halo! Saya TanyaAI, asisten bisnis UMKM Anda. Ada yang bisa saya bantu terkait pengelolaan keuangan, strategi bisnis, atau operasional kasir Anda hari ini?\" }]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/tanyaAI",
+              "host": ["{{base_url}}"],
+              "path": ["tanyaAI"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://chat-kasir-backend.vercel.app",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "MASUKKAN_TOKEN_LOGIN_DI_SINI",
+      "type": "string"
+    }
+  ]
+}
