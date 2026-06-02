@@ -6,10 +6,10 @@ const authRoutes = require("./src/routes/authRoutes");
 const transactionRoutes = require("./src/routes/transactionRoutes");
 const reportRoutes = require("./src/routes/reportRoutes");
 const userRoutes = require("./src/routes/userRoutes");
+const tanyaAIRoutes = require("./src/routes/tanyaAIRoutes");
 
 const app = express();
 
-// Konfigurasi CORS
 app.use(
   cors({
     origin: function (origin, callback) {
@@ -41,13 +41,13 @@ app.use(
   }),
 );
 
-// Middleware untuk parsing JSON
 app.use(express.json());
 
 app.use("/auth", authRoutes);
 app.use("/transactions", transactionRoutes);
 app.use("/report", reportRoutes);
 app.use("/users", userRoutes);
+app.use('/tanya-ai', tanyaAIRoutes);
 
 app.get("/", (req, res) => {
   res.json({ message: "ChatKasir API is running!" });

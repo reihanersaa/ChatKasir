@@ -14,12 +14,41 @@ const FITUR = [
 
 export default function Register() {
   const { loading, handleRegister } = useAuth()
-  const { register, handleSubmit, watch, formState: { errors } } = useForm()
+  
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm()
   const [showPass, setShowPass]   = useState(false)
   const [showPass2, setShowPass2] = useState(false)
 
+  const passwordValue = watch('password') || ''
+  const confirmValue  = watch('konfirmasi') || ''
+  const strength = getStrength(passwordValue)
+
   function onSubmit(data) { 
     handleRegister(data.nama, data.email, data.password) 
+  }
+
+  function generateStrongPassword() {
+    const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    const numbers = "0123456789"
+    const symbols = "!@#$%^&*"
+    const all = letters + numbers + symbols
+    
+    let pass = ""
+    pass += letters[Math.floor(Math.random() * letters.length)]
+    pass += numbers[Math.floor(Math.random() * numbers.length)]
+    pass += symbols[Math.floor(Math.random() * symbols.length)]
+    
+    for (let i = 0; i < 9; i++) {
+      pass += all[Math.floor(Math.random() * all.length)]
+    }
+    
+    pass = pass.split('').sort(() => 0.5 - Math.random()).join('')
+    
+    setValue('password', pass, { shouldValidate: true })
+    setValue('konfirmasi', pass, { shouldValidate: true })
+    
+    setShowPass(true)
+    setShowPass2(true)
   }
 
   const eyeOpen = <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
@@ -28,7 +57,8 @@ export default function Register() {
   return (
     <div className="flex flex-col lg:flex-row min-h-dvh font-sans w-full">
       
-      <div className="flex flex-col w-full lg:w-5/12 xl:w-120 shrink-0 relative bg-green-950 overflow-hidden">
+      {/* Sisi Kiri (Terkunci Sempurna) */}
+      <div className="flex flex-col w-full lg:w-5/12 xl:w-120 shrink-0 relative lg:sticky lg:top-0 lg:h-dvh bg-green-950 overflow-hidden">
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-green-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
         <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-emerald-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
 
@@ -62,6 +92,7 @@ export default function Register() {
         </div>
       </div>
 
+      {/* Sisi Kanan (Form Registrasi) */}
       <div className="flex-1 flex flex-col justify-center p-6 sm:p-10 md:p-12 bg-[linear-gradient(180deg,#f0fff8_0%,#e8faf2_50%,#f0fdf9_100%)]">
         <div className="w-full max-w-md mx-auto my-4 lg:my-auto">
 
@@ -83,24 +114,53 @@ export default function Register() {
               <label className="text-sm font-semibold text-gray-700">Email Akses</label>
               <input type="email" placeholder="contoh@umkm.com"
                 className={`w-full px-4 py-3 rounded-xl text-sm outline-none border ${errors.email ? 'border-red-300 bg-red-50 focus:border-red-500 focus:ring-4' : 'border-green-200 bg-white focus:border-green-500 focus:ring-4 focus:ring-green-500/20'}`}
-                {...register('email', { required: 'Email wajib diisi' })} />
+                {...register('email', { required: 'Email wajib diisi', pattern: { value: /^\S+@\S+$/i, message: 'Format email tidak valid' } })} />
               {errors.email && <p className="text-red-500 text-xs font-medium pl-1">{errors.email.message}</p>}
             </div>
 
+            {/* AREA PASSWORD */}
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-gray-700">Password</label>
+              <div className="flex justify-between items-end">
+                <label className="text-sm font-semibold text-gray-700">Password</label>
+                <button type="button" onClick={generateStrongPassword} className="text-xs font-bold text-green-600 hover:text-green-700 bg-green-50 px-2 py-1 rounded-md transition-colors flex items-center gap-1">
+                  <span>✨</span> Rekomendasi Sandi Kuat
+                </button>
+              </div>
               <div className="relative">
-                <input type={showPass ? 'text' : 'password'} placeholder="Minimal 8 karakter"
+                <input type={showPass ? 'text' : 'password'} placeholder="Minimal 6 karakter"
                   className={`w-full pl-4 pr-12 py-3 rounded-xl text-sm outline-none border [&::-ms-reveal]:hidden [&::-ms-clear]:hidden ${errors.password ? 'border-red-300 bg-red-50 focus:border-red-500 focus:ring-4' : 'border-green-200 bg-white focus:border-green-500 focus:ring-4 focus:ring-green-500/20'}`}
-                  {...register('password', { required: 'Wajib diisi' })} />
+                  {...register('password', { required: 'Wajib diisi', minLength: { value: 6, message: 'Minimal 6 karakter' } })} />
                 <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-green-600 transition-colors">
                   {showPass ? eyeClosed : eyeOpen}
                 </button>
               </div>
+              
+              {/* === KOMENTAR PERBAIKAN 1 === */}
+              {/* Class "h-5" diubah menjadi "h-2". Ini memangkas ruang transparan di bawah form password, 
+                  sehingga form konfirmasi di bawahnya otomatis tertarik ke atas. */}
+              <div className="h-2 mt-1 relative z-10">
+                <div className={`absolute w-full transition-all duration-300 ease-in-out ${passwordValue.length > 0 ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex gap-1 h-1 w-full rounded-full overflow-hidden">
+                      {[1, 2, 3].map((level) => (
+                        <div key={level} className={`h-full flex-1 transition-all duration-300 ${strength >= level ? STRENGTH_COLORS[strength] : 'bg-green-200/40'}`} />
+                      ))}
+                    </div>
+                    <p className={`text-[11px] leading-none font-medium pl-0.5 ${strength === 1 ? 'text-red-500' : strength === 2 ? 'text-yellow-600' : 'text-green-600'}`}>
+                      Kekuatan: {STRENGTH_LABELS[strength]}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
               {errors.password && <p className="text-red-500 text-xs font-medium pl-1">{errors.password.message}</p>}
             </div>
 
-            <div className="space-y-1.5">
+            {/* AREA KONFIRMASI PASSWORD */}
+            {/* === KOMENTAR PERBAIKAN 2 === */}
+            {/* Saya tambahkan class "-mt-1" (margin-top negatif) di sini untuk melawan jarak bawaan 
+                dari form. Efeknya, input Ulangi Password akan melangkah naik mendekati indikator di atasnya. */}
+            <div className="space-y-1.5 -mt-1 relative z-20">
               <label className="text-sm font-semibold text-gray-700">Ulangi Password</label>
               <div className="relative">
                 <input type={showPass2 ? 'text' : 'password'} placeholder="Ketik ulang password"
@@ -110,6 +170,16 @@ export default function Register() {
                   {showPass2 ? eyeClosed : eyeOpen}
                 </button>
               </div>
+
+              {/* Ruang statis dikecilkan menjadi h-3 */}
+              <div className="h-3 mt-1 relative z-10">
+                <div className={`absolute w-full transition-all duration-300 ease-in-out ${confirmValue.length > 0 ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
+                  <p className={`text-[11px] leading-none font-medium pl-1 ${passwordValue === confirmValue ? 'text-green-600' : 'text-red-500'}`}>
+                    {passwordValue === confirmValue ? '✓ Kata sandi cocok' : '✗ Kata sandi tidak cocok dengan input sebelumnya'}
+                  </p>
+                </div>
+              </div>
+              
               {errors.konfirmasi && <p className="text-red-500 text-xs font-medium pl-1">{errors.konfirmasi.message}</p>}
             </div>
 
@@ -134,4 +204,24 @@ export default function Register() {
       </div>
     </div>
   )
+}
+
+// --- LOGIKA HITUNGAN KEKUATAN PASSWORD ---
+const STRENGTH_LABELS = ['', 'Lemah', 'Sedang', 'Kuat']
+const STRENGTH_COLORS = ['', 'bg-red-500', 'bg-yellow-500', 'bg-green-500']
+
+function getStrength(pass) {
+  if (!pass) return 0
+  
+  const hasLetter = /[a-zA-Z]/.test(pass)
+  const hasNumber = /[0-9]/.test(pass)
+  const hasSymbol = /[^a-zA-Z0-9]/.test(pass)
+
+  const typesCount = (hasLetter ? 1 : 0) + (hasNumber ? 1 : 0) + (hasSymbol ? 1 : 0)
+
+  if (typesCount === 1) return 1 
+  if (typesCount === 2) return 2 
+  if (typesCount === 3) return 3 
+  
+  return 0
 }

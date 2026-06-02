@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
@@ -15,12 +15,29 @@ function getNamaHari(tanggal, bulan, tahun) {
   return HARI[d.getDay()]
 }
 
+// FORMATTER: Memotong desimal agar rapi (cth: 1.34jt jadi 1.3jt)
+function truncate1Dec(val) {
+  const num = Math.floor(val / 100000) / 10
+  return num.toFixed(1).replace(/\.0$/, '')
+}
+
+function fmt(v) {
+  if (v === 0) return '0'
+  if (v >= 1000000) return `${truncate1Dec(v)}jt`
+  if (v >= 1000)    return `${Math.round(v / 1000)}rb`
+  return `${v}`
+}
+
+function fmtRing(v) {
+  if (v >= 1000000) return `Rp ${truncate1Dec(v)} Juta`
+  return formatRupiah(v)
+}
+
 function CustomTooltip({ active, payload, label, isDark, bulan }) {
   if (!active || !payload?.length) return null
   const val = payload[0].value
-  const display = val >= 1000000
-    ? `Rp ${(val / 1000000).toFixed(1)} Juta`
-    : formatRupiah(val)
+  const display = fmtRing(val)
+  
   return (
     <div style={{
       background: isDark ? '#1e293b' : '#ffffff',
@@ -41,7 +58,8 @@ function CustomTooltip({ active, payload, label, isDark, bulan }) {
 
 function CustomDot(props) {
   const { cx, cy, payload, maxVal, isDark } = props
-  const isMax = payload.total === maxVal
+  const isMax = payload.total === maxVal && maxVal > 0 
+  
   if (!isMax) return (
     <circle cx={cx} cy={cy} r={4}
       fill={isDark ? '#0f172a' : '#fff'}
@@ -63,16 +81,59 @@ export default function RevenueBarChart({ data = [], bulan = 1, tahun = 2026 }) 
   const isDark    = theme === 'dark'
   const [offset, setOffset] = useState(0)
 
-  const totalPages  = Math.ceil(data.length / PAGE_SIZE)
+  // 1. BUAT DATA DINAMIS FULL 1 BULAN
+  const daysInMonth = new Date(tahun, bulan, 0).getDate()
+  const fullData = Array.from({ length: daysInMonth }, (_, i) => {
+    const tgl = String(i + 1)
+    const found = data.find(d => String(d.tanggal) === tgl)
+    return {
+      tanggal: tgl,
+      total: found ? found.total : 0, 
+    }
+  })
+
+  // 2. AUTO-ARAHKAN KE HALAMAN TERAKHIR YANG ADA DATANYA
+  useEffect(() => {
+    if (data && data.length > 0) {
+      const lastTransactionDay = Math.max(...data.map(d => Number(d.tanggal)))
+      const targetPage = Math.floor((lastTransactionDay - 1) / PAGE_SIZE)
+      setOffset(targetPage * PAGE_SIZE)
+    } else {
+      setOffset(0)
+    }
+  }, [data, bulan, tahun])
+
+  const totalPages  = Math.ceil(fullData.length / PAGE_SIZE)
   const currentPage = Math.floor(offset / PAGE_SIZE)
 
-  const visibleData = data.slice(offset, offset + PAGE_SIZE).map(d => ({
+  // 3. AMBIL DATA UNTUK HALAMAN SAAT INI
+  const visibleData = fullData.slice(offset, offset + PAGE_SIZE).map(d => ({
     ...d,
     hari: getNamaHari(d.tanggal, bulan, tahun),
   }))
 
-  const maxVal   = Math.max(...visibleData.map(d => d.total), 1)
-  const totalPg  = visibleData.reduce((s, d) => s + d.total, 0)
+  const maxVal  = Math.max(...visibleData.map(d => d.total), 0)
+  const totalPg = visibleData.reduce((s, d) => s + d.total, 0)
+
+  // =====================================================================
+  // FOKUS PERBAIKAN: Memaksa garis Y sejajar lurus dengan nilai pemasukan
+  // =====================================================================
+  // Ambil semua nominal pemasukan harian yang ada di tampilan saat ini
+  let yTicks = visibleData
+    .map(d => d.total)
+    .filter((v, i, arr) => arr.indexOf(v) === i) // Hapus angka yang kembar/duplikat
+    
+  // Pastikan angka 0 selalu ada di urutan paling bawah
+  if (!yTicks.includes(0)) {
+    yTicks.push(0)
+  }
+  
+  // Urutkan angka dari yang terkecil ke terbesar
+  yTicks.sort((a, b) => a - b)
+
+  // Berikan sedikit ruang kosong di bagian atas (+15%) agar titik tertinggi tidak menabrak atap grafik
+  const yDomainMax = maxVal > 0 ? maxVal * 1.15 : 100000
+  // =====================================================================
 
   const startDay = visibleData[0]?.tanggal || ''
   const endDay   = visibleData[visibleData.length - 1]?.tanggal || ''
@@ -87,18 +148,6 @@ export default function RevenueBarChart({ data = [], bulan = 1, tahun = 2026 }) 
     : 'linear-gradient(135deg,#ecfdf5,#d1fae5)'
   const txt       = isDark ? '#f8fafc' : '#065f46'
   const txtMut    = isDark ? '#cbd5e1' : '#047857'
-
-  function fmt(v) {
-    if (v >= 1000000) return `${(v / 1000000).toFixed(1)}jt`
-    if (v >= 1000)    return `${(v / 1000).toFixed(0)}rb`
-    return `${v}`
-  }
-
-  function fmtRing(v) {
-    return v >= 1000000
-      ? `Rp ${(v / 1000000).toFixed(1)} Juta`
-      : formatRupiah(v)
-  }
 
   if (!data.length) {
     return (
@@ -118,14 +167,12 @@ export default function RevenueBarChart({ data = [], bulan = 1, tahun = 2026 }) 
     }}>
       <div style={{ background: headGrad }} className="px-3 py-3 sm:px-5 sm:py-4">
         
-        {/* HEADER GRAFIK DIPERBAIKI: Fleksibel, menyatu di HP agar tidak turun ke bawah bertumpuk */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-3 w-full">
           <p className="text-[13px] sm:text-base font-black shrink-0" style={{ color: txt, letterSpacing: '-0.3px' }}>
             PEMASUKAN HARIAN
           </p>
 
           <div className="flex flex-row items-center justify-between gap-2 w-full md:w-auto overflow-hidden">
-            {/* Box Periode */}
             <div className="flex items-center gap-1.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg border truncate" style={{
               background: isDark ? 'rgba(30,41,59,0.8)' : 'rgba(255,255,255,0.85)',
               borderColor: isDark ? '#475569' : '#6ee7b7'
@@ -137,7 +184,6 @@ export default function RevenueBarChart({ data = [], bulan = 1, tahun = 2026 }) 
               </span>
             </div>
 
-            {/* Pagination Controls */}
             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               <button
                 onClick={() => setOffset(o => Math.max(0, o - PAGE_SIZE))}
@@ -167,14 +213,14 @@ export default function RevenueBarChart({ data = [], bulan = 1, tahun = 2026 }) 
               </div>
 
               <button
-                onClick={() => { if (offset + PAGE_SIZE < data.length) setOffset(o => o + PAGE_SIZE) }}
-                disabled={offset + PAGE_SIZE >= data.length}
+                onClick={() => { if (offset + PAGE_SIZE < fullData.length) setOffset(o => o + PAGE_SIZE) }}
+                disabled={offset + PAGE_SIZE >= fullData.length}
                 className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg border-[1.5px] text-base sm:text-lg font-black transition-all"
                 style={{
                   background: isDark ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.8)',
                   borderColor: isDark ? '#334155' : '#6ee7b7',
-                  color: offset + PAGE_SIZE >= data.length ? (isDark ? '#475569' : '#a7f3d0') : (isDark ? '#4ade80' : '#065f46'),
-                  cursor: offset + PAGE_SIZE >= data.length ? 'not-allowed' : 'pointer',
+                  color: offset + PAGE_SIZE >= fullData.length ? (isDark ? '#475569' : '#a7f3d0') : (isDark ? '#4ade80' : '#065f46'),
+                  cursor: offset + PAGE_SIZE >= fullData.length ? 'not-allowed' : 'pointer',
                 }}
               >›</button>
             </div>
@@ -191,7 +237,7 @@ export default function RevenueBarChart({ data = [], bulan = 1, tahun = 2026 }) 
 
       <div style={{ background: cardBg }} className="p-2 sm:p-5">
         <ResponsiveContainer width="100%" height={240}>
-          <AreaChart data={visibleData} margin={{ top: 16, right: 10, left: -15, bottom: 8 }}>
+          <AreaChart data={visibleData} margin={{ top: 16, right: 15, left: 0, bottom: 8 }}>
             <defs>
               <linearGradient id="areaLight" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%"   stopColor="#10b981" stopOpacity={0.35}/>
@@ -227,10 +273,15 @@ export default function RevenueBarChart({ data = [], bulan = 1, tahun = 2026 }) 
               }}
             />
 
+            {/* Sumbu Y kini menggunakan nilai absolut dari yTicks */}
             <YAxis
               tickFormatter={fmt}
               tick={{ fontSize: 10, fill: axisColor, fontWeight: 600 }}
-              tickLine={false} axisLine={false} width={40}
+              tickLine={false} 
+              axisLine={false} 
+              width={50}
+              domain={[0, yDomainMax]}
+              ticks={yTicks}
             />
 
             <Tooltip
