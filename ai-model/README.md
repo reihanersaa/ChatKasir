@@ -25,9 +25,10 @@ Dokumen ini berisi dokumentasi teknis menyeluruh mengenai seluruh pekerjaan **AI
   - [Evaluasi Metrik \& Penanganan Error](#evaluasi-metrik--penanganan-error)
     - [Laporan Kemampuan Model](#laporan-kemampuan-model)
     - [Analisis Kesalahan Konteks (*Error Analysis*)](#analisis-kesalahan-konteks-error-analysis)
-  - [Algoritma Parser JSON \& Kontrak Data API](#algoritma-parser-json--kontrak-data-api)
-    - [Panduan Implementasi untuk AI-2 (DENNY)](#panduan-implementasi-untuk-ai-2-denny)
-    - [Kesiapan Produksi](#kesiapan-produksi)
+  - [Panduan Setup \& Eksekusi di Google Colab](#panduan-setup--eksekusi-di-google-colab)
+    - [Persiapan Struktur Google Drive](#persiapan-struktur-google-drive)
+    - [Konfigurasi Runtime GPU \& Dependency](#konfigurasi-runtime-gpu--dependency)
+    - [Alur Eksekusi Notebook Pipeline](#alur-eksekusi-notebook-pipeline)
 
 
 ## Struktur Folder & File
@@ -257,169 +258,56 @@ Model berhasil memprediksi kata angka penunjuk jumlah seperti "1" (Kasus 1), "du
 
 ---
 
-## Algoritma Parser JSON & Kontrak Data API
+## Panduan Setup & Eksekusi di Google Colab
 
-### Panduan Implementasi untuk AI-2 (DENNY)
+Bagian ini memandu developer atau tim handover untuk mereproduksi proses tokenisasi, training, dan evaluasi menggunakan layanan Google Colab secara runut.
 
-Untuk merakit prediksi tag token dari model AI-1 menjadi format struktur data komersial, tim API wajib mengimplementasikan **Context-Aware / Index-Ordered Parser**. Metode ini memotong kalimat berdasarkan sekat khusus `[SEP]`, memanen entitas produk & qty secara mandiri di sisi pembeli (kiri), lalu memetakan harga satuannya secara linear dari deteksi harga murni sisi kasir (kanan).
+### Persiapan Struktur Google Drive
 
-Berikut adalah referensi kode pipeline parser final dari `03_evaluation.ipynb`:
-
-```python
-import re
-import json
-import numpy as np
-import pandas as pd
-
-# 1. MEMUAT KAMUS SLANG & FUNGSI PREPROCESSING UNTUK SIMULASI
-url_slang = "[https://drive.google.com/uc?id=1vZ769q0ExjO8tUa3kt_O6DPcwBub4uxc](https://drive.google.com/uc?id=1vZ769q0ExjO8tUa3kt_O6DPcwBub4uxc)"
-df_slang = pd.read_csv(url_slang)
-kamus_slang_dict = {str(k).lower().strip(): str(v).lower().strip() for k, v in zip(df_slang.iloc[:, 0], df_slang.iloc[:, 1])}
-
-def clean_whatsapp_text(text, dict_slang):
-    if not isinstance(text, str): return ""
-    baris_chat = text.split('\n')
-    baris_bersih = []
-
-    for baris in baris_chat:
-        if not baris.strip(): continue
-        
-        # [PEMBERSIH KUNCI]: Rumus Regex toleran waktu tanpa tahun agar teks tidak bocor terpotong jam digital
-        baris = re.sub(r'^\[?\d{1,2}[/\-\.]\d{1,2}([/\-\.]\d{2,4})?,?\s+\d{1,2}[:\.]\d{2}([:\.]\d{2})?(\s*[aApP][mM])?\]?\s*(-\s*)?', '', baris)
-        baris = re.sub(r'^\[?\d{1,2}\s+[A-Za-z]+(\s+\d{2,4})?,?\s+\d{1,2}[:\.]\d{2}([:\.]\d{2})?(\s*[aApP][mM])?\]?\s*(-\s*)?', '', baris)
-        
-        if ':' in baris:
-            bagian_kiri = baris.split(':', 1)[0]
-            if len(bagian_kiri) < 50: baris = baris.split(':', 1)[1]
-        baris_bersih.append(baris.strip())
-
-    text = " [SEP] ".join(baris_bersih)
-    text = text.replace("[SEP] [SEP]", "[SEP]").lower()
-    text = text.replace("&", " dan ")
-
-    sapaan_pattern = r'\b(bg|abang|bang|mas|kak|mbak|kk|min|teteh|teh|aa|om|tante|bude|pakde|paklik|pak|bapak|bu|ibu|gan|sis|bro|cuy|bos|juragan|admin|halo|halo admin|hallo|pagi|siang|sore|malam|subuh|assalamualaikum|wr|wb|p|ping|ass|dan|dn|budi|deni|andi|ani|siti|dewi|rudi|joko|reza|putri)\b'
-    text = re.sub(sapaan_pattern, ' ', text)
-
-    text = re.sub(r'\brp\s*(\d+)', r'\1', text)
-    text = re.sub(r'(?<=\d)\.(?=\d{3}\b)', '', text)
-    text = re.sub(r'\b(\d+)\s*(k|rb|ribu)\b', r'\g<1>000', text)
-    text = re.sub(r'\b(\d+)\s*(jt|juta)\b', r'\g<1>000000', text)
-
-    kata_kata = text.split()
-    kata_kata = [dict_slang.get(kata, kata) for kata in kata_kata]
-    text = " ".join(kata_kata)
-
-    text = re.sub(r'[^a-z0-9\s\[\]]', ' ', text)
-    text = re.sub(r'(\b\w+)(nya)\b', r'\1', text)
-    text = text.replace("[sep]", "[SEP]")
-    text = re.sub(r'\b(dong|donk|dnk|ya+|ko+k)\b', '', text)
-    return re.sub(r'\s+', ' ', text).strip()
-
-def bersihkan_angka_harga(teks_harga):
-    teks = teks_harga.lower().replace('.', '').replace(',', '').strip()
-    if 'jt' in teks or 'juta' in teks:
-        angka = re.sub(r'[^0-9]', '', teks)
-        return int(angka) * 1000000 if angka else 0
-    if 'rb' in teks or 'ribu' in teks or 'k' in teks:
-        angka = re.sub(r'[^0-9]', '', teks)
-        return int(angka) * 1000 if angka else 0
-    angka = re.sub(r'[^0-9]', '', teks)
-    return int(angka) if angka else 0
-
-def bersihkan_angka_qty(teks_qty):
-    kamus = {
-        "satu": 1, "sebiji": 1, "seporsi": 1, "sebungkus": 1,
-        "segelas": 1, "semangkok": 1, "sepiring": 1, "sebotol": 1,
-        "secangkir": 1, "setusuk": 1, "sepotong": 1, "siji": 1, "sebox": 1, "sekotak": 1,
-        "secup": 1, "satu cup": 1, "se-pack": 1, "semika": 1, "se-thinwall": 1, "sepaket": 1,
-        "porsi gede": 1, "porsi jumbo": 1, "porsi kecil": 1, "setengah porsi": 1, "setengah": 1,
-        "dua": 2, "loro": 2, "dua bungkus": 2, "dua porsi": 2, "dua mangkuk": 2, "dua pack": 2, "dua box": 2, "dua mika": 2, "dua thinwall": 2, "dua gelas": 2, "dua botol": 2, "dua cup": 2, "dua plastik": 2,
-        "tiga": 3, "telu": 3, "tiga bungkus": 3, "tiga porsi": 3, "tiga piring": 3, "tiga gelas": 3, "tiga botol": 3, "tiga cup": 3,
-        "empat": 4, "mpat": 4, "pat": 4, "papat": 4,
-        "lima": 5, "limo": 5, "lima mangkuk": 5, "lima porsi": 5, "lima pack": 5, "lima box": 5, "lima cup": 5,
-        "enam": 6, "enem": 6, "nam": 6, "tujuh": 7, "pitu": 7, "delapan": 8, "lapan": 8, "wolu": 8,
-        "sembilan": 9, "sanga": 9, "songo": 9, "sepuluh": 10, "sepulu": 10,
-        "sebelas": 11, "seblas": 11, "dua belas": 12, "selusin": 12
-    }
-    teks = teks_qty.lower().strip()
-    if teks in kamus: return kamus[teks]
-    angka = re.sub(r'[^0-9]', '', teks)
-    return int(angka) if angka else 1
-
-def parse_hasil_ai_ke_json(tokens, tags):
-    # Cari letak pembatas [SEP] untuk membagi wilayah tokens pembeli dan penjual
-    sep_idx = len(tokens)
-    if "[SEP]" in tokens:
-        sep_idx = tokens.index("[SEP]")
-
-    buyer_tokens, buyer_tags = tokens[:sep_idx], tags[:sep_idx]
-    seller_tokens, seller_tags = tokens[sep_idx+1:], tags[sep_idx+1:]
-
-    def ekstrak_entitas_sisi(toks_sisi, tgs_sisi):
-        clean_tokens, clean_tags = [], []
-        for t, tag in zip(toks_sisi, tgs_sisi):
-            if t == "[PAD]": break
-            if t.startswith("##"):
-                if clean_tokens: clean_tokens[-1] += t[2:]
-            else:
-                clean_tokens.append(t)
-                clean_tags.append(tag)
-
-        ents_list = []
-        temp_word = []
-        current_tag = None
-
-        for kata, tag in zip(clean_tokens, clean_tags):
-            if tag == "O":
-                if current_tag:
-                    ents_list.append((current_tag, " ".join(temp_word)))
-                    temp_word, current_tag = [], None
-                continue
-            if tag.startswith("B-"):
-                if current_tag:
-                    ents_list.append((current_tag, " ".join(temp_word)))
-                temp_word = [kata]
-                current_tag = tag.split("-")[1]
-            elif tag.startswith("I-"):
-                jenis_tag = tag.split("-")[1]
-                if current_tag == jenis_tag:
-                    temp_word.append(kata)
-                else:
-                    if current_tag:
-                        ents_list.append((current_tag, " ".join(temp_word)))
-                    temp_word = [kata]
-                    current_tag = jenis_tag
-        if current_tag and temp_word:
-            ents_list.append((current_tag, " ".join(temp_word)))
-        return ents_list
-
-    buyer_ents = ekstrak_entitas_sisi(buyer_tokens, buyer_tags)
-    seller_ents = ekstrak_entitas_sisi(seller_tokens, seller_tags)
-
-    # Ambil produk dan jumlah item dari sisi pembeli
-    buyer_products = [v.title() for t, v in buyer_ents if t == "PROD"]
-    buyer_qtys     = [bersihkan_angka_qty(v) for t, v in buyer_ents if t == "QTY"]
-
-    # Ambil semua token harga yang berhasil dilacak dari sisi penjual
-    seller_prices  = [bersihkan_angka_harga(v) for t, v in seller_ents if t == "PRICE"]
-
-    # [KUNCI SINKRON URUTAN]: Pasangkan produk pembeli dengan harga penjual berbasis urutan indeks
-    items = []
-    for i, prod_name in enumerate(buyer_products):
-        qty = buyer_qtys[i] if i < len(buyer_qtys) else 1
-        price = seller_prices[i] if i < len(seller_prices) else 0
-        subtotal = qty * price
-        items.append({
-            "product_name": prod_name,
-            "quantity": qty,
-            "price_satuan": price,
-            "subtotal": subtotal
-        })
-    return items
+Sebelum membuka Google Colab, pastikan seluruh file proyek ai-model telah diunggah ke Google Drive dengan struktur struktur folder berikut agar pembacaan otomatis script tidak mengalami FileNotFoundError:
 
 ```
+Google Drive (My Drive)
+└── ChatKasir/
+    ├── assets/
+    │   ├── data/
+    │   ├── models/
+    │   └── tokenizers/
+    ├── logs/
+    ├── 01_model_architecture.ipynb
+    ├── 02_training.ipynb
+    ├── 03_evaluation.ipynb
+    └── requirements.txt
+```
 
-### Kesiapan Produksi
+### Konfigurasi Runtime GPU & Dependency
 
-1. **Pencegahan Kebocoran Total Belanja:** Total harga akhir (misal: `440000`) otomatis terabaikan dan tersaring keluar tanpa merusak kalkulasi harga satuan produk karena perulangan dikunci murni mengikuti jumlah kuantitas produk pembeli.
-2. **Status Handover:** Berkas biner model kustom `chatkasir_model.keras` beserta kosa kata `tokenizer.json` (Vocab Size: 10.000) dinyatakan **LULUS EVALUASI AKHIR** dan siap diintegrasikan secara penuh ke FAST API utama aplikasi produksi.
+1. Buka Google Colab lalu pasang salah satu notebook dari folder notebooks/ pada repository GitHub ini (misalnya 01_model_architecture.ipynb).
+2. Aktifkan akselerator GPU T4 pada menu Runtime > Change runtime type > pilih T4 GPU.
+3. Jalankan blok kode inisialisasi lingkungan pada notebook cell pertama untuk menghubungkan penyimpanan Drive dan menginstal seluruh pustaka pendukung proyek:
+
+```
+from google.colab import drive
+import os
+
+# Hubungkan Drive dan langsung pindah ke folder ChatKasir
+drive.mount('/content/drive')
+%cd /content/drive/MyDrive/ChatKasir
+
+# Cek requirements.txt dan install seluruh library
+if os.path.exists('requirements.txt'):
+    !pip install -r requirements.txt -q
+    print("Semua library terpasang. ChatKasir siap dijalankan")
+else:
+    print("File 'requirements.txt' tidak ditemukan di folder ChatKasir.")
+```
+
+### Alur Eksekusi Notebook Pipeline
+Untuk menjalankan atau melatih ulang model secara utuh, eksekusi berkas notebook sesuai dengan urutan logis penanganan data di bawah ini:
+
+1. 01_model_architecture.ipynb
+   Tujuan: Membersihkan noise pesan WhatsApp mentah via regex, membangun kosa kata WordPiece Tokenizer berkapasitas 10.000 token unik, memetakan penempatan label token BIO, serta mengekspor biner kompresi dataset dataset_chatkasir.npz.
+2. 02_training.ipynb
+   Tujuan: Memuat dataset terkompresi, menyusun arsitektur kustom Transformer-BiLSTM, serta mengeksekusi siklus loop pelatihan menggunakan tf.GradientTape bersistem bobot hukuman loss. Output terbaik otomatis terekspor ke dalam bentuk file chatkasir_model.keras dan chatkasir_saved_model.
+3. 03_evaluation.ipynb
+   Tujuan: Memvalidasi akurasi model akhir pada subset pengujian murni, mencetak tabel klasifikasi performa presisi entitas, serta menjalankan simulasi fungsional fungsi parser teks pesanan mentah menjadi keluaran JSON siap pakai oleh tim backend.
