@@ -16,6 +16,8 @@ Anda dapat mengakses dan mencoba ekosistem ChatKasir yang sudah berjalan secara 
 - **Core Service (Backend API - Vercel):** [https://chat-kasir-backend.vercel.app]
 - **Asisten Cerdas (AI Inference API - Hugging Face Spaces):** [https://achmadrifan-chatkasir.hf.space]
 - **Dashboard Analitik & Bisnis (Streamlit Cloud):** [https://dashboard-chatkasir.streamlit.app]
+- **Unduh Model AI:** [https://drive.google.com/drive/folders/1uCG9n7wMfF7N71P-xY3FFfJOcwUmpWwJ]
+- **Video Tutorial Penggunaan Aplikasi:** [https://drive.google.com/file/d/1A1HUm3aENf0Cw8Z6yqElG5lpqv39tKHR/view]
 
 ---
 
